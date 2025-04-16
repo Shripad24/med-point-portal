@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +13,9 @@ import { Calendar, Users, Star, BookOpen, Heart, Phone, Mail, AlertCircle } from
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Database } from '@/integrations/supabase/types';
+
+type DoctorSpecialty = Database['public']['Enums']['doctor_specialty'];
 
 const DoctorsPage = () => {
   const { user, userRole } = useAuth();
@@ -36,7 +38,7 @@ const DoctorsPage = () => {
     'gynecology',
     'ophthalmology',
     'general'
-  ];
+  ] as const;
 
   useEffect(() => {
     fetchDoctors();
@@ -76,19 +78,16 @@ const DoctorsPage = () => {
 
   const handleBookAppointment = (doctorId: string) => {
     setOpenDialog(false);
-    // Navigate to appointments page with the doctor pre-selected
     navigate('/appointments', { state: { selectedDoctorId: doctorId } });
   };
 
   const getFilteredDoctors = () => {
     let filtered = [...doctors];
     
-    // Filter by specialty
     if (selectedSpecialty) {
       filtered = filtered.filter(doctor => doctor.specialty === selectedSpecialty);
     }
     
-    // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(doctor => 
@@ -246,7 +245,6 @@ const DoctorsPage = () => {
         {renderDoctorsList()}
       </div>
       
-      {/* Doctor Detail Dialog */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="sm:max-w-[600px]">
           {selectedDoctor && (
