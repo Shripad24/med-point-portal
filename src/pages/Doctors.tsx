@@ -15,7 +15,8 @@ import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Database } from '@/integrations/supabase/types';
 
-type DoctorSpecialty = Database['public']['Enums']['doctor_specialty'];
+// Explicitly define the doctor specialty type
+type DoctorSpecialty = 'cardiology' | 'dermatology' | 'neurology' | 'orthopedics' | 'pediatrics' | 'psychiatry' | 'gynecology' | 'ophthalmology' | 'general';
 
 const DoctorsPage = () => {
   const { user, userRole } = useAuth();
@@ -28,7 +29,8 @@ const DoctorsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   
-  const specialties = [
+  // Define the specialties array with the explicit type
+  const specialties: DoctorSpecialty[] = [
     'cardiology',
     'dermatology',
     'neurology',
@@ -38,7 +40,7 @@ const DoctorsPage = () => {
     'gynecology',
     'ophthalmology',
     'general'
-  ] as DoctorSpecialty[];
+  ];
 
   useEffect(() => {
     fetchDoctors();
