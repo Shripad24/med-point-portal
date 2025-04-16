@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +16,10 @@ import { Badge } from '@/components/ui/badge';
 import { format, parseISO, isValid, addMinutes } from 'date-fns';
 import { Calendar as CalendarIcon, Clock, FileText, X, Pencil, Check, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Database } from '@/integrations/supabase/types';
+
+type AppointmentStatus = Database['public']['Enums']['appointment_status'];
+type DoctorSpecialty = Database['public']['Enums']['doctor_specialty'];
 
 const AppointmentPage = () => {
   const { user, userRole, profile } = useAuth();
@@ -161,10 +166,10 @@ const AppointmentPage = () => {
         duration_minutes: formData.duration,
         reason: formData.reason,
         notes: formData.notes,
-        status: 'scheduled'
+        status: 'scheduled' as AppointmentStatus
       };
 
-      const { error } = await supabase.from('appointments').insert([appointmentData]);
+      const { error } = await supabase.from('appointments').insert(appointmentData);
 
       if (error) {
         throw error;
@@ -186,7 +191,7 @@ const AppointmentPage = () => {
     }
   };
 
-  const updateAppointmentStatus = async (id: string, status: 'scheduled' | 'completed' | 'cancelled' | 'missed') => {
+  const updateAppointmentStatus = async (id: string, status: AppointmentStatus) => {
     try {
       const { error } = await supabase
         .from('appointments')

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +14,10 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Settings as SettingsIcon, ShieldCheck, UserPlus, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
+import { Database } from '@/integrations/supabase/types';
+
+type DoctorSpecialty = Database['public']['Enums']['doctor_specialty'];
+type UserRole = Database['public']['Enums']['user_role'];
 
 const SettingsPage = () => {
   const { user, userRole } = useAuth();
@@ -29,9 +32,9 @@ const SettingsPage = () => {
     firstName: '',
     lastName: '',
     password: '',
-    role: 'patient' as 'patient' | 'doctor' | 'admin',
+    role: 'patient' as UserRole,
     qualification: '',
-    specialty: '',
+    specialty: 'general' as DoctorSpecialty,
     experienceYears: '0'
   });
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,10 +75,22 @@ const SettingsPage = () => {
   };
 
   const handleSelectChange = (name: string, value: string) => {
-    setNewUserForm({
-      ...newUserForm,
-      [name]: value
-    });
+    if (name === 'specialty') {
+      setNewUserForm({
+        ...newUserForm,
+        [name]: value as DoctorSpecialty
+      });
+    } else if (name === 'role') {
+      setNewUserForm({
+        ...newUserForm,
+        [name]: value as UserRole
+      });
+    } else {
+      setNewUserForm({
+        ...newUserForm,
+        [name]: value
+      });
+    }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -111,14 +126,16 @@ const SettingsPage = () => {
 
       // If creating a doctor, add doctor information
       if (newUserForm.role === 'doctor') {
+        const doctorData = {
+          id: userData.user.id,
+          qualification: newUserForm.qualification,
+          specialty: newUserForm.specialty,
+          experience_years: parseInt(newUserForm.experienceYears)
+        };
+        
         const { error: doctorError } = await supabase
           .from('doctors')
-          .insert([{
-            id: userData.user.id,
-            qualification: newUserForm.qualification,
-            specialty: newUserForm.specialty,
-            experience_years: parseInt(newUserForm.experienceYears)
-          }]);
+          .insert(doctorData);
 
         if (doctorError) throw doctorError;
       }
@@ -134,9 +151,9 @@ const SettingsPage = () => {
         firstName: '',
         lastName: '',
         password: '',
-        role: 'patient',
+        role: 'patient' as UserRole,
         qualification: '',
-        specialty: '',
+        specialty: 'general' as DoctorSpecialty,
         experienceYears: '0'
       });
 
@@ -153,7 +170,7 @@ const SettingsPage = () => {
     }
   };
 
-  const handleUserRoleUpdate = async (userId: string, newRole: 'patient' | 'doctor' | 'admin') => {
+  const handleUserRoleUpdate = async (userId: string, newRole: UserRole) => {
     try {
       const { error } = await supabase
         .from('profiles')
