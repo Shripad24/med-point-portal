@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,7 +37,6 @@ const AppointmentPage = () => {
     notes: ''
   });
 
-  // Fetch appointments based on user role
   const fetchAppointments = async () => {
     setLoading(true);
     try {
@@ -48,7 +46,6 @@ const AppointmentPage = () => {
         patient:profiles!appointments_patient_id_fkey(*)
       `);
 
-      // Filter based on user role
       if (userRole === 'doctor') {
         query = query.eq('doctor_id', user!.id);
       } else if (userRole === 'patient') {
@@ -73,7 +70,6 @@ const AppointmentPage = () => {
     }
   };
 
-  // Fetch doctors for appointment booking
   const fetchDoctors = async () => {
     try {
       const { data, error } = await supabase
@@ -97,7 +93,6 @@ const AppointmentPage = () => {
     }
   };
 
-  // Fetch patients (admin only)
   const fetchPatients = async () => {
     if (userRole !== 'admin') return;
     
@@ -155,7 +150,6 @@ const AppointmentPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Create full datetime from date and time
       const [hours, minutes] = formData.time.split(':').map(Number);
       const appointmentDateTime = new Date(formData.appointmentDate);
       appointmentDateTime.setHours(hours, minutes, 0, 0);
@@ -343,10 +337,13 @@ const AppointmentPage = () => {
       </div>
 
       <Tabs defaultValue="upcoming" className="mb-6">
+        <TabsList>
+          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+        </TabsList>
         <TabsContent value="upcoming" className="space-y-4">
           {renderAppointments()}
         </TabsContent>
-      </TabsApi>
+      </Tabs>
 
       {/* New Appointment Dialog */}
       <Dialog open={openNewAppointment} onOpenChange={setOpenNewAppointment}>
