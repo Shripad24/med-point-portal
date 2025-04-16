@@ -28,7 +28,7 @@ const DoctorsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   
-  const specialties = [
+  const specialties: DoctorSpecialty[] = [
     'cardiology',
     'dermatology',
     'neurology',
@@ -38,7 +38,7 @@ const DoctorsPage = () => {
     'gynecology',
     'ophthalmology',
     'general'
-  ] as const;
+  ];
 
   useEffect(() => {
     fetchDoctors();
@@ -53,7 +53,7 @@ const DoctorsPage = () => {
           *,
           profile:profiles(*)
         `)
-        .eq('is_verified', true); // Only fetch verified doctors
+        .eq('is_verified', true);
 
       if (error) {
         throw error;
