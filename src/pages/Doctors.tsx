@@ -28,7 +28,7 @@ const DoctorsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   
-  const specialties: DoctorSpecialty[] = [
+  const specialties = [
     'cardiology',
     'dermatology',
     'neurology',
@@ -38,7 +38,7 @@ const DoctorsPage = () => {
     'gynecology',
     'ophthalmology',
     'general'
-  ];
+  ] as DoctorSpecialty[];
 
   useEffect(() => {
     fetchDoctors();
