@@ -3,15 +3,19 @@ import React, { createContext, useState, useEffect, useContext, ReactNode } from
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Database } from '@/integrations/supabase/types';
+
+type UserRole = Database['public']['Enums']['user_role'];
+type DoctorSpecialty = Database['public']['Enums']['doctor_specialty'];
 
 interface AuthContextProps {
   session: Session | null;
   user: User | null;
-  userRole: 'patient' | 'doctor' | 'admin' | null;
+  userRole: UserRole | null;
   profile: any | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, role?: UserRole, qualification?: string, specialty?: string, experienceYears?: number) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
 }
@@ -21,7 +25,7 @@ const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'patient' | 'doctor' | 'admin' | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -96,25 +100,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    firstName: string, 
+    lastName: string, 
+    role: UserRole = 'patient',
+    qualification?: string,
+    specialty?: string,
+    experienceYears?: number
+  ) => {
     try {
-      const { error } = await supabase.auth.signUp({ 
+      // Register user in Supabase Auth
+      const { data: userData, error } = await supabase.auth.signUp({ 
         email, 
         password,
         options: {
           data: {
             first_name: firstName,
-            last_name: lastName
+            last_name: lastName,
+            role: role
           }
         }
       });
       
       if (error) throw error;
       
-      toast({
-        title: "Account created",
-        description: "Please check your email to confirm your registration.",
-      });
+      if (userData?.user) {
+        // Create profile entry with verification status for doctors
+        const isVerified = role !== 'doctor'; // Patients are automatically verified, doctors need approval
+        
+        await supabase.from('profiles').upsert({
+          id: userData.user.id,
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          role,
+          is_verified: isVerified
+        });
+        
+        // If registering as a doctor, create doctor entry
+        if (role === 'doctor' && qualification && specialty && experienceYears !== undefined) {
+          await supabase.from('doctors').insert({
+            id: userData.user.id,
+            qualification,
+            specialty: specialty as DoctorSpecialty,
+            experience_years: experienceYears,
+            is_verified: false
+          });
+        }
+      }
+      
+      if (role === 'doctor') {
+        toast({
+          title: "Account created",
+          description: "Your doctor account has been created and is awaiting admin verification. Please check your email to confirm your registration.",
+        });
+      } else {
+        toast({
+          title: "Account created",
+          description: "Please check your email to confirm your registration.",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Sign Up Error",

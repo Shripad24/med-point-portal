@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, Users, Star, BookOpen, Heart, Phone, Mail } from 'lucide-react';
+import { Calendar, Users, Star, BookOpen, Heart, Phone, Mail, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const DoctorsPage = () => {
   const { user, userRole } = useAuth();
@@ -49,7 +50,8 @@ const DoctorsPage = () => {
         .select(`
           *,
           profile:profiles(*)
-        `);
+        `)
+        .eq('is_verified', true); // Only fetch verified doctors
 
       if (error) {
         throw error;
@@ -203,6 +205,16 @@ const DoctorsPage = () => {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6">Find a Doctor</h1>
+      
+      {userRole === 'doctor' && !doctors.some(d => d.id === user?.id) && (
+        <Alert className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Your doctor profile is pending verification by an administrator.
+            Once verified, it will appear in the doctor listings.
+          </AlertDescription>
+        </Alert>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="md:col-span-3">
