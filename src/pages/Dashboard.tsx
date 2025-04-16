@@ -1,104 +1,138 @@
 
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, Clock, Users, UserCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Activity, Calendar, Users } from "lucide-react";
+import { format, parseISO, isValid } from "date-fns";
 
 const Dashboard = () => {
-  const { userRole, user } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    upcomingAppointments: 0,
-    totalDoctors: 0,
-    totalPatients: 0,
-    completedAppointments: 0
+  const { user, userRole, profile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    upcomingAppointments: [],
+    recentActivity: [],
+    stats: {
+      totalAppointments: 0,
+      completedAppointments: 0,
+      totalPatients: 0,
+      totalDoctors: 0
+    }
   });
-  const [recentAppointments, setRecentAppointments] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
-      
-      try {
-        // Different dashboard data based on user role
-        if (userRole === 'patient') {
-          await fetchPatientDashboardData();
-        } else if (userRole === 'doctor') {
-          await fetchDoctorDashboardData();
-        } else if (userRole === 'admin') {
-          await fetchAdminDashboardData();
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (user && userRole) {
+    if (user) {
       fetchDashboardData();
     }
   }, [user, userRole]);
 
-  const fetchPatientDashboardData = async () => {
-    // Fetch upcoming appointments
-    const { data: upcomingAppointments, error: upcomingError } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('patient_id', user!.id)
-      .eq('status', 'scheduled')
-      .gte('appointment_date', new Date().toISOString())
-      .order('appointment_date', { ascending: true });
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      let stats = {
+        totalAppointments: 0,
+        completedAppointments: 0,
+        totalPatients: 0,
+        totalDoctors: 0
+      };
 
-    if (upcomingError) throw upcomingError;
-
-    // Fetch completed appointments
-    const { data: completedAppointments, error: completedError } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('patient_id', user!.id)
-      .eq('status', 'completed')
-      .order('appointment_date', { ascending: false });
-
-    if (completedError) throw completedError;
-
-    // Fetch total doctors
-    const { count: doctorsCount, error: doctorsError } = await supabase
-      .from('doctors')
-      .select('*', { count: 'exact', head: true });
-
-    if (doctorsError) throw doctorsError;
-
-    setStats({
-      upcomingAppointments: upcomingAppointments.length,
-      totalDoctors: doctorsCount || 0,
-      totalPatients: 0, // Not relevant for patients
-      completedAppointments: completedAppointments.length
-    });
-
-    setRecentAppointments(upcomingAppointments.slice(0, 5));
+      // Fetch different data based on user role
+      if (userRole === 'admin') {
+        await fetchAdminData(stats);
+      } else if (userRole === 'doctor') {
+        await fetchDoctorData(stats);
+      } else if (userRole === 'patient') {
+        await fetchPatientData(stats);
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const fetchDoctorDashboardData = async () => {
-    // Fetch upcoming appointments for the doctor
+  const fetchAdminData = async (stats: any) => {
+    // Fetch total appointments
+    const { count: totalAppointments, error: apptError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true });
+
+    if (apptError) throw apptError;
+    stats.totalAppointments = totalAppointments || 0;
+
+    // Fetch completed appointments
+    const { count: completedAppointments, error: compError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'completed');
+
+    if (compError) throw compError;
+    stats.completedAppointments = completedAppointments || 0;
+
+    // Fetch total patients
+    const { count: totalPatients, error: patError } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'patient');
+
+    if (patError) throw patError;
+    stats.totalPatients = totalPatients || 0;
+
+    // Fetch total doctors
+    const { count: totalDoctors, error: docError } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'doctor');
+
+    if (docError) throw docError;
+    stats.totalDoctors = totalDoctors || 0;
+
+    // Fetch upcoming appointments
     const { data: upcomingAppointments, error: upcomingError } = await supabase
       .from('appointments')
       .select(`
         *,
-        profiles:patient_id (first_name, last_name)
+        doctor:doctors(
+          *,
+          profile:profiles(*)
+        ),
+        patient:profiles!appointments_patient_id_fkey(*)
       `)
-      .eq('doctor_id', user!.id)
       .eq('status', 'scheduled')
-      .gte('appointment_date', new Date().toISOString())
-      .order('appointment_date', { ascending: true });
+      .order('appointment_date', { ascending: true })
+      .limit(5);
 
     if (upcomingError) throw upcomingError;
 
-    // Fetch total patients seen by this doctor
+    setDashboardData({
+      ...dashboardData,
+      upcomingAppointments: upcomingAppointments || [],
+      stats
+    });
+  };
+
+  const fetchDoctorData = async (stats: any) => {
+    // Fetch doctor's total appointments
+    const { count: totalAppointments, error: apptError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('doctor_id', user!.id);
+
+    if (apptError) throw apptError;
+    stats.totalAppointments = totalAppointments || 0;
+
+    // Fetch doctor's completed appointments
+    const { count: completedAppointments, error: compError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('doctor_id', user!.id)
+      .eq('status', 'completed');
+
+    if (compError) throw compError;
+    stats.completedAppointments = completedAppointments || 0;
+
+    // Fetch doctor's patient count
     const { data: patientIds, error: patientsError } = await supabase
       .from('appointments')
       .select('patient_id')
@@ -106,237 +140,335 @@ const Dashboard = () => {
       .eq('status', 'completed');
 
     if (patientsError) throw patientsError;
-    
-    // Create a Set to get unique patient count
-    const uniquePatients = new Set(patientIds.map(p => p.patient_id));
 
-    // Fetch completed appointments
-    const { data: completedAppointments, error: completedError } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('doctor_id', user!.id)
-      .eq('status', 'completed')
-      .order('appointment_date', { ascending: false });
+    // Count unique patients
+    const uniquePatients = new Set(patientIds?.map(p => p.patient_id));
+    stats.totalPatients = uniquePatients.size;
 
-    if (completedError) throw completedError;
-
-    setStats({
-      upcomingAppointments: upcomingAppointments.length,
-      totalDoctors: 0, // Not relevant for doctors
-      totalPatients: uniquePatients.size,
-      completedAppointments: completedAppointments.length
-    });
-
-    setRecentAppointments(upcomingAppointments.slice(0, 5));
-  };
-
-  const fetchAdminDashboardData = async () => {
     // Fetch upcoming appointments
     const { data: upcomingAppointments, error: upcomingError } = await supabase
       .from('appointments')
       .select(`
         *,
-        doctor:doctor_id (id),
-        patient:patient_id (first_name, last_name)
+        patient:profiles!appointments_patient_id_fkey(*)
       `)
+      .eq('doctor_id', user!.id)
       .eq('status', 'scheduled')
-      .gte('appointment_date', new Date().toISOString())
-      .order('appointment_date', { ascending: true });
+      .order('appointment_date', { ascending: true })
+      .limit(5);
 
     if (upcomingError) throw upcomingError;
 
-    // Fetch total doctors
-    const { count: doctorsCount, error: doctorsError } = await supabase
+    setDashboardData({
+      ...dashboardData,
+      upcomingAppointments: upcomingAppointments || [],
+      stats
+    });
+  };
+
+  const fetchPatientData = async (stats: any) => {
+    // Fetch patient's total appointments
+    const { count: totalAppointments, error: apptError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('patient_id', user!.id);
+
+    if (apptError) throw apptError;
+    stats.totalAppointments = totalAppointments || 0;
+
+    // Fetch patient's completed appointments
+    const { count: completedAppointments, error: compError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('patient_id', user!.id)
+      .eq('status', 'completed');
+
+    if (compError) throw compError;
+    stats.completedAppointments = completedAppointments || 0;
+
+    // Fetch total doctors (for reference)
+    const { count: totalDoctors, error: docError } = await supabase
       .from('doctors')
       .select('*', { count: 'exact', head: true });
 
-    if (doctorsError) throw doctorsError;
+    if (docError) throw docError;
+    stats.totalDoctors = totalDoctors || 0;
 
-    // Fetch total patients
-    const { count: patientsCount, error: patientsError } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'patient');
-
-    if (patientsError) throw patientsError;
-
-    // Fetch completed appointments
-    const { count: completedCount, error: completedError } = await supabase
+    // Fetch upcoming appointments
+    const { data: upcomingAppointments, error: upcomingError } = await supabase
       .from('appointments')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'completed');
+      .select(`
+        *,
+        doctor:doctors(
+          *,
+          profile:profiles(*)
+        )
+      `)
+      .eq('patient_id', user!.id)
+      .eq('status', 'scheduled')
+      .order('appointment_date', { ascending: true })
+      .limit(5);
 
-    if (completedError) throw completedError;
+    if (upcomingError) throw upcomingError;
 
-    setStats({
-      upcomingAppointments: upcomingAppointments.length,
-      totalDoctors: doctorsCount || 0,
-      totalPatients: patientsCount || 0,
-      completedAppointments: completedCount || 0
+    setDashboardData({
+      ...dashboardData,
+      upcomingAppointments: upcomingAppointments || [],
+      stats
     });
-
-    setRecentAppointments(upcomingAppointments.slice(0, 5));
   };
 
-  if (isLoading) {
+  const renderWelcomeMessage = () => {
+    const greeting = getGreeting();
+    const name = profile?.first_name || 'there';
+    
     return (
-      <div className="space-y-4">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">
+          {greeting}, {name}!
+        </h1>
+        <p className="text-muted-foreground">
+          {userRole === 'admin' 
+            ? "Welcome to your admin dashboard. Here's an overview of system activity." 
+            : userRole === 'doctor'
+              ? "Here's an overview of your appointments and patient statistics."
+              : "Here's an overview of your medical appointments and services."}
+        </p>
+      </div>
+    );
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const renderStatsCards = () => {
+    if (loading) {
+      return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-4 w-1/2" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  <Skeleton className="h-4 w-[150px]" />
+                </CardTitle>
+                <Skeleton className="h-4 w-4 rounded-full" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-10 w-1/3" />
+                <Skeleton className="h-8 w-[100px]" />
               </CardContent>
             </Card>
           ))}
         </div>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-1/3" />
-          </CardHeader>
-          <CardContent>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="mb-4">
-                <Skeleton className="h-20 w-full" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      );
+    }
+
+    let cards = [];
+
+    if (userRole === 'admin') {
+      cards = [
+        {
+          title: "Total Appointments",
+          value: dashboardData.stats.totalAppointments,
+          icon: <Calendar className="h-4 w-4 text-muted-foreground" />
+        },
+        {
+          title: "Completed Appointments",
+          value: dashboardData.stats.completedAppointments,
+          icon: <Activity className="h-4 w-4 text-muted-foreground" />
+        },
+        {
+          title: "Total Patients",
+          value: dashboardData.stats.totalPatients,
+          icon: <Users className="h-4 w-4 text-muted-foreground" />
+        },
+        {
+          title: "Total Doctors",
+          value: dashboardData.stats.totalDoctors,
+          icon: <Users className="h-4 w-4 text-muted-foreground" />
+        }
+      ];
+    } else if (userRole === 'doctor') {
+      cards = [
+        {
+          title: "Total Appointments",
+          value: dashboardData.stats.totalAppointments,
+          icon: <Calendar className="h-4 w-4 text-muted-foreground" />
+        },
+        {
+          title: "Completed Appointments",
+          value: dashboardData.stats.completedAppointments,
+          icon: <Activity className="h-4 w-4 text-muted-foreground" />
+        },
+        {
+          title: "Total Patients",
+          value: dashboardData.stats.totalPatients,
+          icon: <Users className="h-4 w-4 text-muted-foreground" />
+        }
+      ];
+    } else {
+      cards = [
+        {
+          title: "Total Appointments",
+          value: dashboardData.stats.totalAppointments,
+          icon: <Calendar className="h-4 w-4 text-muted-foreground" />
+        },
+        {
+          title: "Completed Appointments",
+          value: dashboardData.stats.completedAppointments,
+          icon: <Activity className="h-4 w-4 text-muted-foreground" />
+        },
+        {
+          title: "Available Doctors",
+          value: dashboardData.stats.totalDoctors,
+          icon: <Users className="h-4 w-4 text-muted-foreground" />
+        }
+      ];
+    }
+
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {cards.map((card, index) => (
+          <Card key={index}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                {card.title}
+              </CardTitle>
+              {card.icon}
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{card.value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
-  }
+  };
+
+  const renderUpcomingAppointments = () => {
+    if (loading) {
+      return (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-full mb-2" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      );
+    }
+
+    if (dashboardData.upcomingAppointments.length === 0) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>No Upcoming Appointments</CardTitle>
+            <CardDescription>
+              {userRole === 'patient' 
+                ? "You don't have any scheduled appointments." 
+                : userRole === 'doctor'
+                  ? "You don't have any upcoming appointments with patients."
+                  : "There are no upcoming appointments in the system."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {dashboardData.upcomingAppointments.map((appointment: any) => {
+          const appointmentDate = parseISO(appointment.appointment_date);
+          
+          // Get patient or doctor name based on user role
+          let name = '';
+          if (userRole === 'doctor' && appointment.patient) {
+            name = `${appointment.patient.first_name} ${appointment.patient.last_name}`;
+          } else if ((userRole === 'patient' || userRole === 'admin') && appointment.doctor?.profile) {
+            name = `Dr. ${appointment.doctor.profile.first_name} ${appointment.doctor.profile.last_name}`;
+          }
+          
+          return (
+            <Card key={appointment.id}>
+              <CardHeader className="pb-2">
+                <div className="flex justify-between">
+                  <CardTitle className="text-base">
+                    {isValid(appointmentDate) 
+                      ? format(appointmentDate, 'MMMM d, yyyy')
+                      : 'Invalid date'}
+                  </CardTitle>
+                  <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    Scheduled
+                  </span>
+                </div>
+                <CardDescription>
+                  {isValid(appointmentDate) 
+                    ? format(appointmentDate, 'h:mm a')
+                    : 'Invalid time'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm">
+                  <span className="font-medium">
+                    {userRole === 'doctor' ? 'Patient' : 'Doctor'}:
+                  </span>{' '}
+                  {name}
+                </p>
+                {appointment.reason && (
+                  <p className="text-sm mt-1">
+                    <span className="font-medium">Reason:</span>{' '}
+                    {appointment.reason}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
-          Welcome to your {userRole} dashboard
-        </p>
+    <div className="container mx-auto p-4 space-y-8">
+      {renderWelcomeMessage()}
+      
+      <div className="space-y-8">
+        {renderStatsCards()}
+        
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Upcoming Appointments</h2>
+            {renderUpcomingAppointments()}
+          </div>
+          
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle>System Activity</CardTitle>
+                <CardDescription>
+                  Recent actions and updates
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-center text-gray-500 py-6">
+                  Activity tracking coming soon...
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Upcoming Appointments
-            </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.upcomingAppointments}</div>
-          </CardContent>
-        </Card>
-
-        {userRole !== 'doctor' && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Doctors
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalDoctors}</div>
-            </CardContent>
-          </Card>
-        )}
-
-        {userRole !== 'patient' && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {userRole === 'doctor' ? 'Your Patients' : 'Total Patients'}
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalPatients}</div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Completed Appointments
-            </CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completedAppointments}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Appointments</CardTitle>
-          <CardDescription>
-            {recentAppointments.length > 0 
-              ? 'Your upcoming appointments' 
-              : 'You have no upcoming appointments'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {recentAppointments.length > 0 ? (
-            <div className="space-y-4">
-              {recentAppointments.map((appointment) => (
-                <div 
-                  key={appointment.id} 
-                  className="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {new Date(appointment.appointment_date).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(appointment.appointment_date).toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {appointment.duration_minutes && ` (${appointment.duration_minutes} min)`}
-                    </p>
-                    {appointment.profiles && (
-                      <p className="text-sm">
-                        Patient: {appointment.profiles.first_name} {appointment.profiles.last_name}
-                      </p>
-                    )}
-                    {appointment.reason && (
-                      <p className="text-sm text-muted-foreground">
-                        Reason: {appointment.reason}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/appointments/${appointment.id}`}>
-                      View Details
-                    </Link>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-4 text-center">
-              <p className="text-muted-foreground mb-4">No upcoming appointments found</p>
-              <Button asChild>
-                <Link to="/appointments">
-                  {userRole === 'patient' ? 'Book an Appointment' : 'View All Appointments'}
-                </Link>
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 };
