@@ -103,7 +103,7 @@ const Dashboard = () => {
       .from('appointments')
       .select('patient_id')
       .eq('doctor_id', user!.id)
-      .is('status', 'completed');
+      .eq('status', 'completed');
 
     if (patientsError) throw patientsError;
     
