@@ -1,68 +1,64 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { Toaster } from '@/components/ui/toaster';
+import Layout from '@/components/layout/Layout';
+import Index from '@/pages/Index';
+import Auth from '@/pages/Auth';
+import Dashboard from '@/pages/Dashboard';
+import Appointments from '@/pages/Appointments';
+import Profile from '@/pages/Profile';
+import Doctors from '@/pages/Doctors';
+import MedicalRecords from '@/pages/MedicalRecords';
+import NotFound from '@/pages/NotFound';
+import Admin from '@/pages/Admin';
+import Patients from '@/pages/Patients';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-// Pages
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Appointments from "./pages/Appointments";
-import Doctors from "./pages/Doctors";
-import Patients from "./pages/Patients";
-import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
-
-const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+function App() {
+  return (
+    <ThemeProvider defaultTheme="light" storageKey="medpoint-theme">
+      <AuthProvider>
+        <Router>
           <Routes>
-            {/* Public routes */}
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             
-            {/* Protected routes for all authenticated users */}
+            {/* Protected routes with Layout */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/appointments" element={<Appointments />} />
-              <Route path="/profile" element={<Profile />} />
+              <Route element={<Layout />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/appointments" element={<Appointments />} />
+                <Route path="/appointments/new" element={<Appointments isNew={true} />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/doctors" element={<Doctors />} />
+                <Route path="/medical-records" element={<MedicalRecords />} />
+                
+                {/* Admin-only route */}
+                <Route path="/admin" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Admin />
+                  </ProtectedRoute>
+                } />
+                
+                {/* Doctor-only route */}
+                <Route path="/patients" element={
+                  <ProtectedRoute allowedRoles={['doctor', 'admin']}>
+                    <Patients />
+                  </ProtectedRoute>
+                } />
+              </Route>
             </Route>
-
-            {/* Protected routes for specific roles */}
-            <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-              {/* Admin-only routes */}
-              <Route path="/settings" element={<Settings />} />
-            </Route>
-
-            <Route element={<ProtectedRoute allowedRoles={['doctor', 'admin']} />}>
-              {/* Doctor and admin routes */}
-              <Route path="/patients" element={<Patients />} />
-            </Route>
-
-            <Route element={<ProtectedRoute allowedRoles={['patient', 'admin']} />}>
-              {/* Patient and admin routes */}
-              <Route path="/doctors" element={<Doctors />} />
-            </Route>
-
-            {/* Fallback routes */}
-            <Route path="/unauthorized" element={<div>Unauthorized</div>} />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+        </Router>
+        <Toaster />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
 
 export default App;

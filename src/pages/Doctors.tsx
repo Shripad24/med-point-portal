@@ -56,11 +56,11 @@ const DoctorsPage = () => {
           profile:profiles(*)
         `)
         .eq('is_verified', true);
-
+  
       if (error) {
         throw error;
       }
-
+  
       setDoctors(data || []);
     } catch (error: any) {
       toast({

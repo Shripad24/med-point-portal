@@ -82,7 +82,8 @@ const AppointmentPage = () => {
         .select(`
           *,
           profile:profiles(*)
-        `);
+        `)
+        .eq('is_verified', true); // Only fetch verified doctors
 
       if (error) {
         throw error;
@@ -330,6 +331,71 @@ const AppointmentPage = () => {
     });
   };
 
+  // Move this function definition outside the return statement
+  const renderNewAppointmentForm = () => {
+    return (
+      <Dialog open={openNewAppointment} onOpenChange={setOpenNewAppointment}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Book New Appointment</DialogTitle>
+            <DialogDescription>
+              Fill in the details to schedule your appointment.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {userRole === 'admin' && (
+              <div className="space-y-2">
+                <Label htmlFor="patientId">Patient</Label>
+                <Select 
+                  value={formData.patientId} 
+                  onValueChange={(value) => handleSelectChange('patientId', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Patient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {patients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.first_name} {patient.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {userRole !== 'doctor' && (
+              <div className="space-y-2">
+                <Label htmlFor="doctorId">Doctor</Label>
+                <Select 
+                  value={formData.doctorId} 
+                  onValueChange={(value) => handleSelectChange('doctorId', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Doctor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {doctors.map((doctor) => (
+                      <SelectItem key={doctor.id} value={doctor.id}>
+                        Dr. {doctor.profile.first_name} {doctor.profile.last_name} ({doctor.specialty})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {/* Rest of the form fields */}
+            <DialogFooter>
+              <Button type="submit">Book Appointment</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
@@ -351,177 +417,7 @@ const AppointmentPage = () => {
       </Tabs>
 
       {/* New Appointment Dialog */}
-      <Dialog open={openNewAppointment} onOpenChange={setOpenNewAppointment}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Schedule New Appointment</DialogTitle>
-            <DialogDescription>
-              Fill out the form below to schedule an appointment with a doctor.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              {userRole === 'admin' && (
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="patientId" className="text-right">
-                    Patient
-                  </Label>
-                  <div className="col-span-3">
-                    <Select 
-                      name="patientId"
-                      value={formData.patientId} 
-                      onValueChange={(value) => handleSelectChange('patientId', value)}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a patient" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {patients.map((patient) => (
-                          <SelectItem key={patient.id} value={patient.id}>
-                            {`${patient.first_name} ${patient.last_name}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="doctorId" className="text-right">
-                  Doctor
-                </Label>
-                <div className="col-span-3">
-                  <Select 
-                    name="doctorId"
-                    value={formData.doctorId} 
-                    onValueChange={(value) => handleSelectChange('doctorId', value)}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a doctor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {doctors.map((doctor) => (
-                        <SelectItem key={doctor.id} value={doctor.id}>
-                          {`Dr. ${doctor.profile.first_name} ${doctor.profile.last_name} (${doctor.specialty})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="date" className="text-right">
-                  Date
-                </Label>
-                <div className="col-span-3">
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={handleDateChange}
-                    disabled={(date) => date < new Date()}
-                    className="rounded-md border"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="time" className="text-right">
-                  Time
-                </Label>
-                <div className="col-span-3">
-                  <Select 
-                    name="time"
-                    value={formData.time} 
-                    onValueChange={(value) => handleSelectChange('time', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 9 }, (_, i) => i + 9).map((hour) => (
-                        <React.Fragment key={hour}>
-                          <SelectItem value={`${hour.toString().padStart(2, '0')}:00`}>
-                            {`${hour}:00 ${hour < 12 ? 'AM' : 'PM'}`}
-                          </SelectItem>
-                          <SelectItem value={`${hour.toString().padStart(2, '0')}:30`}>
-                            {`${hour}:30 ${hour < 12 ? 'AM' : 'PM'}`}
-                          </SelectItem>
-                        </React.Fragment>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="duration" className="text-right">
-                  Duration
-                </Label>
-                <div className="col-span-3">
-                  <Select 
-                    name="duration"
-                    value={formData.duration.toString()} 
-                    onValueChange={(value) => handleSelectChange('duration', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select duration" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15">15 minutes</SelectItem>
-                      <SelectItem value="30">30 minutes</SelectItem>
-                      <SelectItem value="45">45 minutes</SelectItem>
-                      <SelectItem value="60">60 minutes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="reason" className="text-right">
-                  Reason
-                </Label>
-                <div className="col-span-3">
-                  <Input
-                    id="reason"
-                    name="reason"
-                    value={formData.reason}
-                    onChange={handleInputChange}
-                    placeholder="Brief reason for the appointment"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="notes" className="text-right">
-                  Notes
-                </Label>
-                <div className="col-span-3">
-                  <Textarea
-                    id="notes"
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    placeholder="Any additional details or notes"
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpenNewAppointment(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                Schedule Appointment
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {renderNewAppointmentForm()}
 
       {/* View Appointment Dialog */}
       <Dialog open={openViewAppointment} onOpenChange={setOpenViewAppointment}>

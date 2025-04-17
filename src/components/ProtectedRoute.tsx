@@ -1,10 +1,15 @@
 
+import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import Layout from './Layout';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export const ProtectedRoute = ({ allowedRoles }: { allowedRoles?: ('patient' | 'doctor' | 'admin')[] }) => {
+interface ProtectedRouteProps {
+  children?: React.ReactNode;
+  allowedRoles?: ('patient' | 'doctor' | 'admin')[];
+}
+
+export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user, userRole, isLoading } = useAuth();
 
   // Show loading state
@@ -31,15 +36,16 @@ export const ProtectedRoute = ({ allowedRoles }: { allowedRoles?: ('patient' | '
 
   // If specific roles are required, check them
   if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
-  // If all checks pass, render the protected content within the layout
-  return (
-    <Layout>
-      <Outlet />
-    </Layout>
-  );
+  // If children are provided, render them directly
+  if (children) {
+    return <>{children}</>;
+  }
+
+  // Otherwise, use Outlet for nested routes
+  return <Outlet />;
 };
 
 export default ProtectedRoute;

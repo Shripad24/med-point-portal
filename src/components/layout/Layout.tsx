@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,7 +20,9 @@ import {
   LogOut, 
   Menu, 
   Settings,
-  LayoutDashboard
+  LayoutDashboard,
+  ShieldCheck,
+  FileText
 } from 'lucide-react';
 
 interface NavigationLink {
@@ -30,19 +32,25 @@ interface NavigationLink {
   roles: ('patient' | 'doctor' | 'admin')[];
 }
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
+// Updated to use Outlet instead of children prop
+const Layout = () => {
   const { user, userRole, signOut, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
   const navigationLinks: NavigationLink[] = [
-    { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, roles: ['patient', 'doctor', 'admin'] },
+    {
+      name: 'Dashboard',
+      path: '/dashboard',
+      icon: <LayoutDashboard className="h-5 w-5" />,
+      roles: ['patient', 'doctor', 'admin'],
+    },
     { name: 'Appointments', path: '/appointments', icon: <Calendar size={20} />, roles: ['patient', 'doctor', 'admin'] },
     { name: 'Doctors', path: '/doctors', icon: <Users size={20} />, roles: ['patient', 'admin'] },
-    { name: 'Patients', path: '/patients', icon: <Users size={20} />, roles: ['doctor', 'admin'] },
+    { name: 'Medical Records', path: '/medical-records', icon: <FileText size={20} />, roles: ['patient', 'doctor', 'admin'] },
     { name: 'Profile', path: '/profile', icon: <User size={20} />, roles: ['patient', 'doctor', 'admin'] },
-    { name: 'Settings', path: '/settings', icon: <Settings size={20} />, roles: ['admin'] },
+    { name: 'Admin', path: '/admin', icon: <ShieldCheck size={20} />, roles: ['admin'] },
   ];
 
   // Filter navigation links based on user role
@@ -172,7 +180,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4">
-          {children}
+          <Outlet />
         </main>
       </div>
     </div>

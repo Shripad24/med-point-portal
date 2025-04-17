@@ -64,6 +64,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  // Update the fetchProfile function in AuthContext.tsx to check for admin emails
+  
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -71,15 +73,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .select('*')
         .eq('id', userId)
         .single();
-
+  
       if (error) {
         console.error('Error fetching profile:', error);
         return;
       }
-
+  
       if (data) {
-        setProfile(data);
-        setUserRole(data.role);
+        // Check if the user's email is in the admin_emails table
+        const { data: adminData, error: adminError } = await supabase
+          .from('admin_emails')
+          .select('*')
+          .eq('email', data.email);
+  
+        if (!adminError && adminData && adminData.length > 0) {
+          // If the email is in admin_emails, set role to admin
+          setProfile({ ...data, role: 'admin' });
+          setUserRole('admin');
+          
+          // Update the profile in the database if needed
+          if (data.role !== 'admin') {
+            await supabase
+              .from('profiles')
+              .update({ role: 'admin' })
+              .eq('id', userId);
+          }
+        } else {
+          setProfile(data);
+          setUserRole(data.role);
+        }
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -90,6 +112,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      
+      // After successful sign-in, check if the user is a doctor and if they're verified
+      const session = await supabase.auth.getSession();
+      const userId = session.data.session?.user.id;
+      
+      if (userId) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .single();
+          
+        if (profileData?.role === 'doctor') {
+          const { data: doctorData } = await supabase
+            .from('doctors')
+            .select('is_verified')
+            .eq('id', userId)
+            .single();
+            
+          if (doctorData && !doctorData.is_verified) {
+            // Sign out the user if they're a doctor but not verified
+            await supabase.auth.signOut();
+            throw new Error('Your doctor account is pending verification by an administrator.');
+          }
+        }
+      }
     } catch (error: any) {
       toast({
         title: "Sign In Error",

@@ -27,6 +27,8 @@ const SettingsPage = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [adminEmails, setAdminEmails] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [openUserDialog, setOpenUserDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -45,6 +47,8 @@ const SettingsPage = () => {
   useEffect(() => {
     if (userRole !== 'admin') return;
     fetchUsers();
+    fetchDoctors();
+    fetchAdminEmails();
   }, [user, userRole]);
 
   const fetchUsers = async () => {
